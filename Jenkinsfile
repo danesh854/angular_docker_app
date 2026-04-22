@@ -1,0 +1,79 @@
+pipeline {
+    agent any
+
+    environment {
+        KUBECONFIG = '/var/lib/jenkins/.kube/config'
+        AWS_DEFAULT_REGION = 'ap-southeast-1'
+        IMAGE_NAME = 'daneshkabade45/ecomm_store'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        DEPLOYMENT_NAME = 'angular-deployment'
+        CONTAINER_NAME = 'angular-container'
+    }
+
+    stages {
+
+        stage('Clone Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/danesh854/angular_docker_app.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-creds',
+                    usernameVariable: 'USER',
+                    passwordVariable: 'PASS'
+                )]) {
+                    sh '''
+                    echo $PASS | docker login -u $USER --password-stdin
+                    docker push $IMAGE_NAME:$IMAGE_TAG
+                    docker logout
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to EKS') {
+            steps {
+                sh '''
+                set -e
+
+                export KUBECONFIG=/var/lib/jenkins/.kube/config
+                export AWS_DEFAULT_REGION=ap-southeast-1
+
+                echo "🔍 Checking AWS identity..."
+                aws sts get-caller-identity
+
+                echo "🔄 Updating kubeconfig..."
+                aws eks update-kubeconfig --region ap-southeast-1 --name my-cluster
+
+                echo "📦 Applying Kubernetes manifests..."
+                kubectl apply -f Deployment.yml
+
+                echo "🚀 Updating deployment image..."
+                kubectl set image deployment/$DEPLOYMENT_NAME \
+                $CONTAINER_NAME=$IMAGE_NAME:$IMAGE_TAG
+
+                echo "⏳ Waiting for rollout..."
+                kubectl rollout status deployment/$DEPLOYMENT_NAME
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ Angular App Deployed Successfully 🎉'
+        }
+        failure {
+            echo '❌ Pipeline Failed'
+        }
+    }
+}
