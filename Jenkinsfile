@@ -8,6 +8,7 @@ pipeline {
         IMAGE_TAG = "${BUILD_NUMBER}"
         DEPLOYMENT_NAME = 'angular-deployment'
         CONTAINER_NAME = 'angular-container'
+        NAMESPACE = 'frontend'   // 👈 IMPORTANT
     }
 
     stages {
@@ -40,29 +41,22 @@ pipeline {
             }
         }
 
-        stage('Deploy to EKS') {
+        stage('Deploy to EKS (Frontend Namespace)') {
             steps {
                 sh '''
                 set -e
 
                 export KUBECONFIG=/var/lib/jenkins/.kube/config
-                export AWS_DEFAULT_REGION=ap-southeast-1
 
-                echo "🔍 Checking AWS identity..."
-                aws sts get-caller-identity
-
-                echo "🔄 Updating kubeconfig..."
-                aws eks update-kubeconfig --region ap-southeast-1 --name my-cluster
-
-                echo "📦 Applying Kubernetes manifests..."
-                kubectl apply -f Deployment.yml
+                echo "📦 Applying manifests to frontend namespace..."
+                kubectl apply -f Deployment.yml -n $NAMESPACE
 
                 echo "🚀 Updating deployment image..."
                 kubectl set image deployment/$DEPLOYMENT_NAME \
-                $CONTAINER_NAME=$IMAGE_NAME:$IMAGE_TAG
+                $CONTAINER_NAME=$IMAGE_NAME:$IMAGE_TAG -n $NAMESPACE
 
                 echo "⏳ Waiting for rollout..."
-                kubectl rollout status deployment/$DEPLOYMENT_NAME
+                kubectl rollout status deployment/$DEPLOYMENT_NAME -n $NAMESPACE
                 '''
             }
         }
