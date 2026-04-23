@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: angular-deployment
-  namespace: frontend   # 👈 IMPORTANT
+  namespace: frontend
 spec:
   replicas: 2
   selector:
@@ -15,16 +15,22 @@ spec:
     spec:
       containers:
       - name: angular-container
-        image: daneshkabade45/ecomm_store:latest   # 👈 better for pipeline
+        image: daneshkabade45/ecomm_store:latest
         ports:
         - containerPort: 80
-        imagePullPolicy: Always                    # 👈 ensure latest image
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: angular-service
-  namespace: frontend   # 👈 IMPORTANT
+  namespace: frontend
 spec:
   type: LoadBalancer
   selector:
